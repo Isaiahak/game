@@ -1,0 +1,36 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+		},
+		{
+			"path": "C:\\Users\\Isaiah\\Odin\\vendor\\raylib",
+		},
+		{
+			"path": "C:\\Users\\Isaiah\\Odin\\core\\math",
+		},
+		{
+			"path": "C:\\Users\\Isaiah\\Odin\\core\\fmt"
+		},
+	],
+	"build_systems":
+	[
+		{
+			"name": "sublime_odin_template",
+			"cmd":"odin run .",
+			"file_regex":  "^(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+		}
+	],
+	"settings":
+	{
+		"auto-complete": true,
+		"LSP":
+		{
+			"odin":
+			{
+				"enable": true,
+			},
+		},
+	},
+}
