@@ -4,188 +4,262 @@ import rl "vendor:raylib"
 import "core:math"
 import "core:fmt"
 
-WINDOW_SIZE :: 900
+WINDOW_SIZE :: 640
 GRID_WIDTH :: 20
-GRID_HEIGHT :: 16
 CELL_SIZE :: 16
-CANVAS_SIZE_WIDTH :: GRID_WIDTH*CELL_SIZE
-CANVAS_SIZE_HEIGHT :: GRID_HEIGHT*CELL_SIZE
+CANVAS_SIZE :: GRID_WIDTH*CELL_SIZE
 TICK_RATE :: 0.13
-MOVE_DISTANCE :: 0.25*CELL_SIZE
-FALL_DISTANCE :: 0.5*CELL_SIZE
-MAX_ANGLE :: math.RAD_PER_DEG*80
+MOVE_DISTANCE :: CELL_SIZE*2
+FALL_DISTANCE :: CELL_SIZE*2
+MAX_ANGLE :: math.RAD_PER_DEG*85
 MIN_ANGLE :: math.RAD_PER_DEG*20
-Move_state :: enum {Falling,Standing,Against_Wall}
-
+LEFT_MAX_ANGLE :: math.PI - math.RAD_PER_DEG*20
+LEFT_MIN_ANGLE :: math.PI - math.RAD_PER_DEG*80
+MAX_STRENGTH :: 21
+MIN_STRENGTH :: 0
+ANGLE_CHANGE :: 0.2
+STRENGTH_CHANGE :: 1000
+GRAVITY :: 0.020
+Projectile_state :: enum {Stuck,Travelling}
+Turn :: enum{Player,Enemy}
+Action :: enum{Move,Aim,Fire}
+Direction :: enum {Left,Right}
+Projectile_type :: enum {Bullet,Fly}
+Game_state :: enum{MainPage,LevelSelector,Combat,Victory,Defeat}
+Level :: enum {Level1,Level2,Level3,Level4,Level5}
 Character :: struct{
 	pos: rl.Vector2,
-	hp:  int,
+	hp:  f32,
 	walk_distance: int,
-	dir: int, // 1 == right 0 == left
-	move_state: Move_state,
+	dir: Direction, // 1 == right 0 == left
 }
 
-Projectile :: struct{
+Player_Projectile :: struct{
 	pos: rl.Vector2,
-	shoot_strength: f32,
+	strength: f32,
 	angle: f32, 
-	velocity_vector: rl.Vector2,
-	fire_time: f64,
+	dir: Direction,
+	state: Projectile_state,
+	time: f32,
+	type: Projectile_type,
 }
 
-Map : [GRID_WIDTH][GRID_WIDTH] bool = {
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false,false,false,false},
-    {false,false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false,false,false,false},
-    {true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true},
-    {true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true},
-    {true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true},
-    {true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true},
-    {true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true},
-    {true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true}
-};
 
-Turn :: enum{Player,Enemy,Projectile}
-Action :: enum{Move,Shoot}
-Player_Projectiles : Projectile
-Enemy_Projectiles : Projectile
+
+Player_proj: Player_Projectile
 tick_timer: f32 = TICK_RATE
-move_direction: rl.Vector2
-abs_move_direction: rl.Vector2 
-player_dir: int
-enemy_dir: int
+move_direction: Direction
+move_amount: f32
+
+player_dir: Direction
 player_pos: rl.Vector2 
 player: Character
-enemy: Character
-player_move_state : Move_state
-enemy_move_state : Move_state
-enemy_pos: rl.Vector2
+
+level1_enemy_dir: Direction
+level1_enemy_pos: rl.Vector2 
+level1_enemy: Enemy
+level1_attack: Projectile
+
+level2_enemy_dir: Direction
+level2_enemy_pos: rl.Vector2 
+level2_enemy: Gun_Enemy
+
+level3_enemy_dir: Direction
+level3_enemy_pos: rl.Vector2 
+level3_enemy: Lazer_Enemy
+
+level4_enemy_dir: Direction
+level4_enemy_pos: rl.Vector2 
+level4_enemy: Bomb_Enemy
+
+level5_enemy_dir: Direction
+level5_enemy_pos: rl.Vector2 
+level5_enemy: Melee_Enemy
+
+current_max_angle: f32
+current_min_angle: f32
 walk_distance:= 1000
 current_turn: Turn
 prev_turn: Turn
 current_action: Action
 timer: f64
 start_time: f64
-shoot_strength: f32 
+strength: f32 
 round_time: f64
-shoot_angle: f32
-angle_change : f32
 count_up: bool
 reset : bool
-step : int 
+up_key: rl.KeyboardKey
+down_key: rl.KeyboardKey
+current_game_state: Game_state
+game_level: Level
+current_map : [GRID_WIDTH][GRID_WIDTH] bool
 
-
-move_character :: proc(character: Character, cur_turn: Turn) -> (moved_character: Character){
-	moved_character = character
-	#partial switch cur_turn{
-		case Turn.Player:
-			if timer - start_time < round_time{ 
-				if check_for_wall(moved_character.pos,moved_character.dir) || check_for_border(moved_character.pos){
-					moved_character.move_state = Move_state.Against_Wall
+MovePlayer :: proc(){
+	if player.pos.x >= 0 && player.pos.x <= GRID_WIDTH*CELL_SIZE && player.pos.y >= 0 && player.pos.y <= GRID_WIDTH*CELL_SIZE{
+		time := rl.GetFrameTime()
+		if !IsStanding(player.pos){
+			player.pos.y += FALL_DISTANCE * time
+		}else{
+			if rl.IsKeyDown(.RIGHT){
+				player.dir = Direction.Right
+				if !IsStuck(player.pos,player.dir){
+					if MOVE_DISTANCE * time + player.pos.x > GRID_WIDTH*CELL_SIZE{
+						overshoot := (MOVE_DISTANCE * time) + player.pos.x - GRID_WIDTH*CELL_SIZE
+						move_amount = MOVE_DISTANCE * time - overshoot
+					}else{
+						move_amount = MOVE_DISTANCE * time
+					}
 				}
-				if check_if_falling(moved_character.pos){
-					moved_character.move_state = Move_state.Falling
-				}
-				else if check_if_standing(moved_character.pos){
-					moved_character.move_state = Move_state.Standing
-				}
-				fmt.println(moved_character.move_state, moved_character.pos)
-				switch moved_character.move_state{
-					case Move_state.Falling: 
-						moved_character.pos.y += FALL_DISTANCE
-					case Move_state.Standing:
-						if timer - start_time < round_time{
-							if walk_distance - moved_character.walk_distance > 0{ 
-								if rl.IsKeyDown(.RIGHT){
-									moved_character.pos.x += MOVE_DISTANCE
-									moved_character.dir = 1
-								}else if rl.IsKeyDown(.LEFT){
-									moved_character.pos.x -= MOVE_DISTANCE
-									moved_character.dir = 0
-								}
-							}else{
-								current_action = Action.Shoot
-							}
-						}else{
-							prev_turn = current_turn
-							current_turn = Turn.Projectile
-						}
-					case Move_state.Against_Wall: 
-						if timer - start_time < round_time{
-							if walk_distance - moved_character.walk_distance > 0{
-								if rl.IsKeyDown(.RIGHT) && find_wall_and_border_side(moved_character.pos) == 0 && find_wall_and_border_side(moved_character.pos) != 1{
-									moved_character.pos.x += MOVE_DISTANCE
-									moved_character.dir = 1
-								}else if rl.IsKeyDown(.LEFT) && find_wall_and_border_side(moved_character.pos) == 1 && find_wall_and_border_side(moved_character.pos) != 0 {
-									moved_character.pos.x -= MOVE_DISTANCE
-									moved_character.dir = 0
-								}
-							}else{
-								current_action = Action.Shoot
-							}
-						}else{
-							prev_turn = current_turn
-							current_turn = Turn.Projectile
-						}
-				}
-				if rl.IsKeyDown(.UP){
-
-				}else if rl.IsKeyDown(.DOWN){
-
-				}else if rl.IsKeyDown(.SPACE){
-					current_action = Action.Shoot
-				}
-			}else{
-				prev_turn = current_turn
-				current_turn = Turn.Projectile
 			}
-
-
-		case Turn.Enemy: 
+			else if rl.IsKeyDown(.LEFT){
+				player.dir = Direction.Left
+				if !IsStuck(player.pos,player.dir){
+					if  player.pos.x - (MOVE_DISTANCE * time) < 0{
+						overshoot :=  player.pos.x - (MOVE_DISTANCE * time)  
+						move_amount = - MOVE_DISTANCE * time + overshoot
+					}else{
+						move_amount = - MOVE_DISTANCE * time
+					}
+				}		
+			}
+			player.pos.x += move_amount
 		}
-	return moved_character
-	}
-
-
-
-check_if_standing :: proc(player_pos: rl.Vector2) -> bool{
-	if Map[int(player_pos.y/CELL_SIZE)][int(player_pos.x/CELL_SIZE)] == true{
-		return true
-	}else{
-		return false
 	}
 }
 
-check_if_falling :: proc(player_pos: rl.Vector2) -> bool{
-	if Map[int((player_pos.y)/CELL_SIZE)][int(player_pos.x/CELL_SIZE)] == false{
-		return true
-	}else{
-		return false
+AimPlayerProjectile :: proc(projectile: Player_Projectile)->Player_Projectile{
+	projectile := projectile
+	time : f32
+	if rl.IsKeyDown(.SPACE){
+		time := rl.GetFrameTime() / 100
+		if projectile.strength >= MIN_STRENGTH && projectile.strength <= MAX_STRENGTH{
+			if projectile.strength < MAX_STRENGTH && count_up == true{
+				if projectile.strength + (STRENGTH_CHANGE * time) > MAX_STRENGTH{
+					overshoot_strength := projectile.strength + (STRENGTH_CHANGE * time) - MAX_STRENGTH
+					projectile.strength = projectile.strength + (STRENGTH_CHANGE * time) - overshoot_strength
+				}else{
+					projectile.strength = projectile.strength + (STRENGTH_CHANGE * time)
+				}
+				if projectile.strength == MAX_STRENGTH{
+					count_up = false
+				}	
+			}else{
+				if projectile.strength - (STRENGTH_CHANGE * time) < MIN_STRENGTH{
+					overshoot_strength := projectile.strength - (STRENGTH_CHANGE * time)
+					projectile.strength = projectile.strength - (STRENGTH_CHANGE * time) + overshoot_strength
+				}else{
+					projectile.strength = projectile.strength - STRENGTH_CHANGE * time
+				}
+				if projectile.strength <= MIN_STRENGTH + 0.1{
+					count_up = true
+				}
+			}
+		}
 	}
+	else{	
+		time = rl.GetFrameTime()
+		if projectile.angle >= current_min_angle && projectile.angle <= current_max_angle {
+			if rl.IsKeyDown(up_key){
+				if (projectile.angle + (ANGLE_CHANGE * time)) > current_max_angle{
+					angle_overshoot := projectile.angle + ( ANGLE_CHANGE * time) - current_max_angle
+					projectile.angle = projectile.angle + (ANGLE_CHANGE *  time) - angle_overshoot
+				}else{
+					projectile.angle = projectile.angle + (ANGLE_CHANGE *  time)
+				}
+			}else if rl.IsKeyDown(down_key){
+				if (projectile.angle - (ANGLE_CHANGE * time)) < current_min_angle{
+					angle_overshoot := projectile.angle - (ANGLE_CHANGE * time) - current_min_angle 
+					projectile.angle = projectile.angle - (ANGLE_CHANGE * time) - angle_overshoot		
+				}else{
+					projectile.angle = projectile.angle - (ANGLE_CHANGE * time) 
+				}	
+			}
+		}
+	}
+	return projectile
 }
 
-check_for_wall :: proc(player_pos: rl.Vector2, dir: int) -> bool{
+MoveProjectile :: proc(projectile: Player_Projectile)->Player_Projectile{
+	projectile := projectile
+	time := rl.GetFrameTime()
+	if BorderHit(projectile){
+		if projectile.pos.x <= 0 || projectile.pos.x >= GRID_WIDTH*CELL_SIZE{
+			if projectile.pos.x <= 0{
+				projectile.pos.x = GRID_WIDTH*CELL_SIZE - CELL_SIZE
+			}else{
+				projectile.pos.x = 0.1
+			}
+		}else if projectile.pos.y == 0 || projectile.pos.y == GRID_WIDTH*CELL_SIZE{
+			if projectile.pos.y == GRID_WIDTH {
+				projectile.state = .Stuck
+			}
+		}
+	}else if !WallHit(projectile){
+		projectile.pos.x += (projectile.strength*math.cos(projectile.angle)*time)*CELL_SIZE
+		projectile.time += time
+		projectile.pos.y = projectile.pos.y - (projectile.strength*math.sin(projectile.angle)*time)*CELL_SIZE + GRAVITY*projectile.time
+	}else{
+		// figure out why it aint moving
+		projectile.state = .Stuck
+		if projectile.type == Projectile_type.Fly{
+			player.pos.x = projectile.pos.x - CELL_SIZE + 0.1
+			player.pos.y = projectile.pos.y - CELL_SIZE + 0.1
+		}
+		current_turn = .Enemy
+		current_action = .Move
+	}
+	return projectile
+}
+
+IsStanding :: proc(player_pos: rl.Vector2) -> bool{
+	result:= false
+	if current_map[int((player_pos.y+CELL_SIZE)/CELL_SIZE)][int((player_pos.x)/CELL_SIZE)]{
+		result = true
+	}
+	return result
+}
+
+IsStuck :: proc(player_pos:rl.Vector2, player_dir: Direction) -> bool{
+	result := false
+	if player_pos.y < 0 {
+		result = true
+	}
+	if player_pos.y > GRID_WIDTH*CELL_SIZE {
+		result = true
+	}
+	else if player_dir == Direction.Right{
+		// if moving to the right
+		if player_pos.x + CELL_SIZE > GRID_WIDTH*CELL_SIZE{
+			result = true
+		}
+		else if current_map[int((player_pos.y)/CELL_SIZE)][int((player_pos.x+CELL_SIZE)/CELL_SIZE)]{
+			result = true
+		}
+	}
+	else if player_dir == Direction.Left{
+		// if moving to the left
+		if  player_pos.x < 0.01 {
+			result = true
+		}
+		else if current_map[int((player_pos.y)/CELL_SIZE)][int((player_pos.x-CELL_SIZE)/CELL_SIZE)]{
+			result = true
+		}
+		
+	}
+	return result		
+}
+
+WallHit :: proc(proj: Player_Projectile)-> bool{
 	result : bool
-	fmt.println(Map[int(player_pos.y/CELL_SIZE)][int((player_pos.x + 1)/CELL_SIZE)])
-	fmt.println(Map[int(player_pos.y/CELL_SIZE)][int((player_pos.x - 1)/CELL_SIZE)])
-	if dir == 1 {
-		if Map[int(player_pos.y/CELL_SIZE)][int((player_pos.x + 1)/CELL_SIZE)] == true{
-			result = true
-		}
-	}if dir == 0 {
-		if Map[int(player_pos.y/CELL_SIZE)][int((player_pos.x - 1)/CELL_SIZE)] == true{
-			result = true
+	if proj.pos.x >= 0 && proj.pos.x <= GRID_WIDTH*CELL_SIZE && proj.pos.y >= 0 && proj.pos.y <= GRID_WIDTH*CELL_SIZE{
+		if proj.dir == Direction.Right{
+			if current_map[int(proj.pos.y/CELL_SIZE)][int((proj.pos.x)/CELL_SIZE)]{
+				result = true
+			}
+		}else{
+			if current_map[int(proj.pos.y/CELL_SIZE)][int((proj.pos.x-CELL_SIZE)/CELL_SIZE)]{
+				result = true
+			}
 		}
 	}else{
 		result = false
@@ -193,223 +267,217 @@ check_for_wall :: proc(player_pos: rl.Vector2, dir: int) -> bool{
 	return result
 }
 
-check_for_border :: proc(player_pos: rl.Vector2) -> bool{
-	fmt.println(GRID_WIDTH*CELL_SIZE)
-	if player_pos.y > GRID_HEIGHT*CELL_SIZE{
-		return true
-	}else if player_pos.x <= 0{
-		return true
-	}
-	else if player_pos.x > GRID_WIDTH*CELL_SIZE-MOVE_DISTANCE{
-		return true
+BorderHit :: proc(proj: Player_Projectile)-> bool{
+	result : bool
+	if proj.pos.x <= 0 || proj.pos.x >= GRID_WIDTH*CELL_SIZE || proj.pos.y >= GRID_WIDTH*CELL_SIZE{
+		result = true
 	}else{
-		return false
+		result = false
 	}	
+	return result
 }
 
-move_projectile :: proc(projectile_pos :rl.Vector2, projectile_time :f64) -> (new_pos :rl.Vector2){
-	new_pos = projectile_pos
-	delta_t := rl.GetTime() - projectile_time
-	gravity : f64 = -1
-	initial_pos := player.pos
-	new_pos.x = f32(f64(initial_pos.x) + f64(Player_Projectiles.velocity_vector[0])*delta_t)
-	new_pos.y = f32(f64(initial_pos.y) + f64(Player_Projectiles.velocity_vector[1])*delta_t + 1/2 * gravity * delta_t * delta_t)
-	return new_pos
-
+EnemyHit :: proc(proj: Player_Projectile){
 }
 
-find_wall_and_border_side :: proc (player_pos: rl.Vector2) -> int{
-	side := 2
-	//left side
-	if player_pos.x - MOVE_DISTANCE<= 0 || Map[int((player_pos.x - 1)/CELL_SIZE)][int(player_pos.y/CELL_SIZE)] == true{
-		side = 0
-	}
-	else if player_pos.x + MOVE_DISTANCE >= GRID_WIDTH*CELL_SIZE || Map[int((player_pos.x + 1)/CELL_SIZE)][int(player_pos.y/CELL_SIZE)] == true{
-	//right side
-		side = 1
-	}
-	fmt.print(side)
-	return side
+
+
+CombatLogic :: proc(){
+    if current_game_state == .Combat{   
+    switch current_turn{
+                case .Player:
+                switch current_action{ 
+                    case .Move:
+                        if rl.IsKeyPressed(.K){
+                            current_action = .Aim
+                            Player_proj.dir = player.dir
+                            if player.dir == Direction.Left{
+                                Player_proj.angle = math.PI - math.RAD_PER_DEG*45
+                                current_max_angle = LEFT_MAX_ANGLE
+                                current_min_angle = LEFT_MIN_ANGLE
+                                up_key = .DOWN
+                                down_key = .UP
+                            }else{
+                                Player_proj.angle = math.RAD_PER_DEG*45
+                                current_max_angle = MAX_ANGLE
+                                current_min_angle = MIN_ANGLE
+                                up_key = .UP 
+                                down_key = .DOWN
+                            }
+                            Player_proj.strength = 0
+                        }else{
+                            MovePlayer()
+                        }
+                    case .Aim: 
+                        if rl.IsKeyPressed(.K){
+                            current_action = .Fire
+                            Player_proj.pos.x = player.pos.x
+                            Player_proj.pos.y = player.pos.y
+                            Player_proj.state = .Travelling
+                            Player_proj.time = 0
+                        }
+                        if rl.IsKeyPressed(.T){
+                            if Player_proj.type == Projectile_type.Bullet{
+                                Player_proj.type  = Projectile_type.Fly
+                            }else if Player_proj.type == Projectile_type.Fly{
+                                Player_proj.type  = Projectile_type.Bullet                      
+                            }
+                        }else{
+                            Player_proj = AimPlayerProjectile(Player_proj)
+                        }
+                    case .Fire: 
+                        if rl.IsKeyPressed(.K) && Player_proj.state == .Travelling{
+                            current_action = .Move
+                        }else{
+                            Player_proj = MoveProjectile(Player_proj)
+                        }
+                }
+            case .Enemy:
+                switch current_action{
+                    case .Move: 
+                        switch game_level{
+                            case .Level1: 
+                                /* 
+                                projectile enemies have arching shots so they shouldnt have to much much to hit the player
+								projectiles will arch meaning that if there is a wall above us we need to move so we dont hit it
+								and if there is a wall in the way of the the shoot we need to move so we can hit the player
+								*/
+								if abs(level1_enemy.pos.x - player.pos.x) > 3{
+									if !IsStuck(level1_enemy.pos,level1_enemy.dir){
+										
+
+									}
+
+								}else{
+									current_action = .Aim
+								}
+								fmt.print(level1_enemy.pos)
+								
+                            case .Level2:
+                                /*
+                                gun enemies have straight shooting shots when cannot go through walls so they will need to be able to move until 
+                                they are in the light of sight of the player. (straight lineto player no walls)
+								
+								*/
+                            case .Level3:
+                         		/*
+                                lazer enemies enemies have a limited lazer range, so they will have to move within range of there lazer, their movement is special,
+                                as they teleport around. logic for teleporting is as follows. teleport horizontally until you reach your max teleport length, if you reach 
+                                a wall before your teleport length we teleport to the top of the wall and placing ourselves on it. if we are teleporting horizontally and there
+                                is no floor below us, we teleport to the nearest ground within the same column and end our horiontal movement.
+                         		*/
+                            case .Level4:
+                            	/*
+                                bomb enemies are going to have a shorter range than projectile enemis, to stick with the bomb theme they will do their movements by projectiling themselves,
+                                similar to how the players fly mechanic works, there will be a maximum high to their  **bomb jump** unless there is a wall in their way in which they will
+                                jump to the top of the wall. similar the teleport wall case
+                            	*/
+
+                            case .Level5:
+                            	/*
+                                melee enemies are going to move similar to players, but when encountering a wall they will jump to the top of it and when encountering an edge
+                                jumping down it 
+                            	*/ 
+                        }
+                    case .Aim:
+                         switch game_level{
+                            case .Level1: 
+                            case .Level2:
+                            case .Level3:
+                            case .Level4:
+                            case .Level5: 
+                        }
+                    case .Fire:
+                         switch game_level{
+                            case .Level1: 
+                            case .Level2:
+                            case .Level3:
+                            case .Level4:
+                            case .Level5: 
+                        }
+                }
+        
+        }
+    }
 }
 
-change_angle :: proc(curr_angle, angle_change:f32, direction:int) -> f32{
-	new_angle := curr_angle
-	if direction == 1{
-		if curr_angle < MAX_ANGLE {
-			new_angle = curr_angle + angle_change 
-		}
-	}
-	else{
-		if curr_angle > MIN_ANGLE {	
-			new_angle = curr_angle - angle_change 
-		}
-	}
-	return new_angle
-} 
 
-refresh :: proc(){
-	player_pos= {0,13}
-	player_move_state = Move_state.Standing
-	player = {player_pos,100,0,player_dir,player_move_state}
-	enemy_pos = {18,13}
-	enemy_move_state = Move_state.Standing
-	enemy = {enemy_pos,3,100,enemy_dir,enemy_move_state}
-	angle_change = math.RAD_PER_DEG
+Refresh :: proc(){
+	player_pos= {0,13*CELL_SIZE}
+	player_dir = Direction.Right
+	player = {player_pos,10,0,player_dir}
+
+	level1_enemy_dir = Direction.Left
+	level1_enemy_pos = {18*CELL_SIZE,13*CELL_SIZE}
+    level1_enemy = {level1_enemy_pos,10,level1_enemy_dir,10,0}
+    level1_attack = {Attack {level1_enemy_pos,1}, ProjectileProperties {math.RAD_PER_DEG*45,0,1*CELL_SIZE}}
+
+
+	level2_enemy_dir = Direction.Left
+	level2_enemy_pos = {18*CELL_SIZE,13*CELL_SIZE} 
+	level2_enemy = Gun_Enemy {}
+    level2_enemy = Enemy {level2_enemy_pos,10,level2_enemy_dir,10,0}
+
+	level3_enemy_dir = Direction.Left
+	level3_enemy_pos = {18*CELL_SIZE,3*CELL_SIZE} 
+ 	level3_enemy = Lazer_Enemy {}
+    level3_enemy = Enemy {level3_enemy_pos,10,level3_enemy_dir,10,0}
+
+	level4_enemy_dir = Direction.Left
+	level4_enemy_pos = {9*CELL_SIZE,17*CELL_SIZE} 
+	level4_enemy = Bomb_Enemy {}
+    level4_enemy = Enemy {level4_enemy_pos,10,level4_enemy_dir,25,0}
+    
+
+	level5_enemy_dir = Direction.Left
+	level5_enemy_pos = {18*CELL_SIZE,13*CELL_SIZE} 
+	level5_enemy = Melee_Enemy {}
+    level5_enemy = Enemy {level5_enemy_pos,10,level5_enemy_dir,100,0}
+
 	round_time = 30
-	shoot_angle = math.RAD_PER_DEG*45
 	current_turn = Turn.Player
 	prev_turn = Turn.Player
 	current_action = Action.Move
 	start_time = rl.GetTime()
 	count_up = true
 	reset = false
+	current_game_state = Game_state.LevelSelector
 }
 
-main :: proc() {
+main :: proc(){
 	rl.SetConfigFlags({.VSYNC_HINT})
 	rl.InitWindow(WINDOW_SIZE,WINDOW_SIZE, "game")
-	//sprite declaration
-	knight_sprite := rl.LoadTexture("Images/knight.png")
-	knight_sprite.width = CELL_SIZE
-	knight_sprite.height = CELL_SIZE
-	enemy_sprite := rl.LoadTexture("Images/enemy.png")
-	enemy_sprite.width = CELL_SIZE
-	enemy_sprite.height = CELL_SIZE
-	dirt_texture := rl.LoadTexture("Images/dirt.png")
-	sky_texture := rl.LoadTexture("Images/background.png")
-	bullet := rl.LoadTexture("Images/fire_balls.png")
-
-	refresh()
+	CreateMainPage()
+	CreateLevelSelectorPage()
+	CreateDefeatPage()
+	CreateVictoryPage()
+	CreateCombatpage()
+	Refresh()
 	
 	for !rl.WindowShouldClose(){
 		tick_timer = tick_timer - rl.GetFrameTime()
-		//fmt.println(player.abs.x, player.abs.y, ", relative pos: ", player.pos.x*CELL_SIZE,player.pos.y*CELL_SIZE,"steps",player.walk_distance,"direction",player.dir_x)
-		timer = rl.GetTime()
-		move_direction = {0,0}
-		abs_move_direction = {0,0}
-		step = 0
+		move_direction = Direction.Left
+		move_amount = 0
 		//game clock logic
-		if tick_timer <= 0 {
-			if rl.IsKeyDown(.F){
-				refresh()
-			}
-			switch current_turn{
-				case .Player:
-					switch current_action{
-						case .Move:
-							player = move_character(player,current_turn)
-						case .Shoot:
-							break	
-							
-					}
-						 
-				case .Enemy:
-					switch current_action{
-						case .Move: 
-							player = move_character(enemy,current_turn)
-						case .Shoot: 
-							break
-							
-
-					}
-				case .Projectile:
-				// the projectile needs to fly enemy or and play and once its done we go to the next state
-				#partial switch prev_turn{
-					case .Player: 
-						Player_Projectiles.pos = move_projectile(Player_Projectiles.pos, Player_Projectiles.fire_time)
-						for i in 0..<GRID_WIDTH{
-							for j in 0..<GRID_WIDTH{
-								if Map[j][i] == true{
-									if rl.CheckCollisionPointRec(Player_Projectiles.pos, rl.Rectangle{f32(i),f32(j),GRID_WIDTH,GRID_WIDTH}){
-										prev_turn := Turn.Player
-										current_turn := Turn.Enemy
-										start_time = rl.GetTime()
-										shoot_angle = math.PI / 4
-
-									}
-								}
-							}
-						}
-						if rl.CheckCollisionPointRec(Player_Projectiles.pos, rl.Rectangle{enemy.pos.x,enemy.pos.y,GRID_WIDTH,GRID_WIDTH}){
-							enemy.hp = enemy.hp - 1
-							prev_turn := Turn.Player
-							current_turn := Turn.Enemy
-							start_time = rl.GetTime()
-							shoot_angle = math.PI / 4
-						}
-						
-					case .Enemy: 
-						// enemy projectile logic
-						if rl.IsKeyDown(.N) {
-							// figure out shoot logic
-							prev_turn = Turn.Enemy
-							current_turn = Turn.Player
-							current_action = Action.Move
-							start_time = rl.GetTime()
-							shoot_angle = math.PI / 4
-						}	
-				}
-			}
-			tick_timer += TICK_RATE
+		if rl.IsKeyDown(.F){
+			Refresh()
+		}
+		if tick_timer <= 0{
+			tick_timer = TICK_RATE + tick_timer
 		}
 		
-
 		// display drawing
 		rl.BeginDrawing()
 		camera := rl.Camera2D {
-			zoom = f32(WINDOW_SIZE/ CANVAS_SIZE_HEIGHT)
+			zoom = f32(WINDOW_SIZE / CANVAS_SIZE)
 		}
 		rl.BeginMode2D(camera)
-		rl.DrawTextureV(enemy_sprite,{f32(enemy.pos.x),f32(enemy.pos.y)}*CELL_SIZE,rl.WHITE)
-		for i in 0..<GRID_WIDTH{
-			for j in 0..<GRID_WIDTH{
-				if Map[i][j] == true {
-					source := rl.Rectangle{0,0,f32(dirt_texture.width),f32(dirt_texture.height),}
-					destination := rl.Rectangle {f32(j)*CELL_SIZE,f32(i)*CELL_SIZE,CELL_SIZE,CELL_SIZE,}
-					rl.DrawTexturePro(dirt_texture,source,destination,{CELL_SIZE,CELL_SIZE}*0.5,0,rl.WHITE)
-				}else{
-					source := rl.Rectangle{0,0,f32(sky_texture.width),f32(sky_texture.height),}
-					destination := rl.Rectangle {f32(j)*CELL_SIZE,f32(i)*CELL_SIZE,CELL_SIZE,CELL_SIZE,}
-					rl.DrawTexturePro(sky_texture,source,destination,{CELL_SIZE,CELL_SIZE}*0.5,0,rl.WHITE)
-				}
-			}
-		}
-
-
-		source_player := rl.Rectangle{0,0,f32(knight_sprite.width),f32(knight_sprite.height),}
-		destination_player := rl.Rectangle {f32(player.pos.x),f32(player.pos.y),CELL_SIZE*2,CELL_SIZE*2,}
-		rl.DrawTexturePro(knight_sprite,source_player,destination_player,{CELL_SIZE*0.5,CELL_SIZE},0,rl.WHITE)
-		source_bullet := rl.Rectangle{0,0,f32(16),f32(16),}
-		destination_bullet := rl.Rectangle {f32(Player_Projectiles.pos.x)*CELL_SIZE,f32(Player_Projectiles.pos.y)*CELL_SIZE,CELL_SIZE/2,CELL_SIZE/2,}
-		rl.DrawTexturePro(bullet,source_bullet,destination_bullet,{CELL_SIZE,CELL_SIZE}*0.5,0,rl.WHITE)
-		time_remaining := int(start_time - timer + f64(30))
-		
-		if current_turn != Turn.Projectile {
-			time_remaining_str := fmt.ctprintf("Time remaining: %v",time_remaining)
-			rl.DrawText(time_remaining_str,CANVAS_SIZE_WIDTH/2,GRID_WIDTH/2,10,rl.GRAY)
-		}
-		current_turn_str := fmt.ctprintf("Current Turn: %v", current_turn)
-		rl.DrawText(current_turn_str,CANVAS_SIZE_WIDTH/2 - CELL_SIZE, GRID_WIDTH,8,rl.GRAY)
-		enemy_hp_str := fmt.ctprintf("BOSS HEALTH: %v / 3", enemy.hp)
-		rl.DrawText(enemy_hp_str,CANVAS_SIZE_WIDTH/2,1,10,rl.RED)
-		current_angle_str := fmt.ctprintf("Current Angle %v", shoot_angle*math.DEG_PER_RAD)
-		rl.DrawText(current_angle_str,4,CANVAS_SIZE_HEIGHT,8,rl.BLACK)
-		current_strength_str := fmt.ctprintf("Current Shoot Strength %v", shoot_strength)
-		rl.DrawText(current_strength_str,4,CANVAS_SIZE_HEIGHT - GRID_HEIGHT,8,rl.BLACK)
-		steps_remaining_str := fmt.ctprintf("Steps Remaining: %v", walk_distance - player.walk_distance)
-		rl.DrawText(steps_remaining_str,CANVAS_SIZE_WIDTH-GRID_WIDTH*6.5,CANVAS_SIZE_HEIGHT,8,rl.BLACK)
-
-		shoot_vector := rl.Vector2 {(math.cos(shoot_angle) + CELL_SIZE), (math.sin(shoot_angle) + CELL_SIZE)}
-		rl.DrawLine( i32(shoot_vector.x), i32(shoot_vector.y),i32(player.pos.x*CELL_SIZE), i32(player.pos.y*CELL_SIZE),rl.BLACK)
-		
+        CombatLogic()
+		DrawUI()
 		free_all(context.temp_allocator)
 		rl.EndMode2D()
 		rl.EndDrawing()
 	}
-	rl.UnloadTexture(knight_sprite)
-	rl.UnloadTexture(enemy_sprite)
-	rl.UnloadTexture(dirt_texture)
-	rl.UnloadTexture(sky_texture)
-	rl.UnloadTexture(bullet)
 	rl.CloseWindow()
 }
+
