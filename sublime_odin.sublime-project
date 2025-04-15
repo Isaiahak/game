@@ -5,13 +5,13 @@
 			"path": ".",
 		},
 		{
-			"path": "C:\\Users\\Isaiah\\Odin\\vendor\\raylib",
+			"path": "\\Users\\isaiahkenny\\Odin\\vendor\\raylib",
 		},
 		{
-			"path": "C:\\Users\\Isaiah\\Odin\\core\\math",
+			"path": "\\Users\\isaiahkenny\\Odin\\core\\math",
 		},
 		{
-			"path": "C:\\Users\\Isaiah\\Odin\\core\\fmt"
+			"path": "\\Users\\isaiahkenny\\Odin\\core\\fmt"
 		},
 	],
 	"build_systems":
